@@ -75,8 +75,8 @@ ENCODING_MAP = {
 
 CONSTANT_OVERHEAD = {
     # Apparently ST doesn't add BOMs.
-    # "UTF-16 LE": b'\xFF\xFE',
-    # "UTF-16 BE": b'\xFE\xFF',
+    # "UTF-16 LE": b"\xFF\xFE",
+    # "UTF-16 BE": b"\xFE\xFF",
 }
 
 # Ditto for line endings. At least there's only three forms here.
@@ -104,7 +104,7 @@ def count_hex_digits(s):
 def get_view_info(view):
     line_endings = LINE_ENDINGS_MAP[view.line_endings()]
     encoding = ENCODING_MAP[view.encoding()]
-    overhead = CONSTANT_OVERHEAD.get(view.encoding(), '')
+    overhead = CONSTANT_OVERHEAD.get(view.encoding(), "")
     return line_endings, encoding, overhead
 
 
