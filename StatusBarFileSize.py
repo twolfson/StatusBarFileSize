@@ -75,8 +75,8 @@ ENCODING_MAP = {
 
 CONSTANT_OVERHEAD = {
     # Apparently ST doesn't add BOMs.
-    # "UTF-16 LE": 2,
-    # "UTF-16 BE": 2,
+    # "UTF-16 LE": b'\xFF\xFE',
+    # "UTF-16 BE": b'\xFE\xFF',
 }
 
 # Ditto for line endings. At least there's only three forms here.
@@ -101,23 +101,28 @@ def count_hex_digits(s):
     return sum(1 for x in s if x in "abcdefABCDEF0123456789")
 
 
+def iterate_view_blocks(view):
+    for start, end in ranges(0, view.size(), BLOCK_SIZE):
+        r = sublime.Region(start, end)
+        yield r
+
+
 def estimate_file_size(view):
     tag = view.change_count()
 
     try:
         line_endings = LINE_ENDINGS_MAP[view.line_endings()]
         encoding = ENCODING_MAP[view.encoding()]
-        overhead = CONSTANT_OVERHEAD.get(view.encoding(), 0)
+        overhead = CONSTANT_OVERHEAD.get(view.encoding(), '')
     except KeyError:
         # Unknown encoding or line ending, so we fail.
         return None
 
-    size = overhead
-    for start, end in ranges(0, view.size(), BLOCK_SIZE):
+    size = len(overhead)
+    for r in iterate_view_blocks(view):
         if view.change_count() != tag:
             # Buffer was changed, we abort our mission.
             return None
-        r = sublime.Region(start, end)
         text = view.substr(r)
 
         if encoding == SPECIAL_HEXADECIMAL:
@@ -136,6 +141,38 @@ def estimate_file_size(view):
     return int(size)
 
 
+def calculate_gzip_size(view):
+    tag = view.change_count()
+
+    try:
+        line_endings = LINE_ENDINGS_MAP[view.line_endings()]
+        encoding = ENCODING_MAP[view.encoding()]
+        overhead = CONSTANT_OVERHEAD.get(view.encoding(), '')
+    except KeyError:
+        # Unknown encoding or line ending, so we fail.
+        return None
+
+    byte_content = io.BytesIO()
+    with gzip.GzipFile(fileobj=byte_content, mode="wb") as f:
+        f.write(overhead)
+        for r in iterate_view_blocks(view):
+            if view.change_count() != tag:
+                # Buffer was changed, we abort our mission.
+                return None
+            text = view.substr(r)
+
+            if encoding == SPECIAL_HEXADECIMAL:
+                # TODO: Figure out what to do for hexadecimal
+                return None
+            else:
+                try:
+                    f.write(text.replace("\n", line_endings).encode(encoding))
+                except UnicodeError:
+                    # Encoding failed, we just fail here.
+                    return None
+    return int(byte_content.tell())
+
+
 class StatusBarFileSize(sublime_plugin.EventListener):
     KEY_SIZE = "FileSize"
     SETTINGS = "StatusBarFileSize.sublime-settings"
@@ -149,37 +186,40 @@ class StatusBarFileSize(sublime_plugin.EventListener):
 
     @property
     def setting_calculate_gzip(self):
-        # TODO: Respect this setting
         settings = sublime.load_settings(self.SETTINGS)
         return settings.get("calculate_gzip", self.CALCULATE_GZIP_DEFAULT)
 
     def update_file_size(self, view):
         view.erase_status(self.KEY_SIZE)
 
+        size = None
+        gzip_size = None
         if not view.file_name() or view.is_dirty():
             if self.setting_estimate_file_size:
                 # Try to estimate the file size based on encoding and line
                 # endings.
                 size = estimate_file_size(view)
-                pattern = "~%s"
-                byte_content = io.BytesIO()
-                with gzip.open(byte_content, 'wb') as f:
-                    r = sublime.Region(0, view.size())
-                    text = view.substr(r)
-                    f.write(text.encode(view.encoding()))
-                print(byte_content.tell())
-
-            else:
-                size = None
+                pattern = "~{size}"
+                if self.setting_calculate_gzip:
+                    gzip_size = calculate_gzip_size(view)
+                    gzip_pattern = "~{size} ({gzip_size})"
         else:
             try:
                 size = os.path.getsize(view.file_name())
-                pattern = "%s"
+                pattern = "{size}"
+                if self.setting_calculate_gzip:
+                    # Faster to use content from buffer than reading on disk
+                    gzip_size = calculate_gzip_size(view)
+                    gzip_pattern = "{size} ({gzip_size})"
             except OSError:
-                size = None
+                pass
 
         if size is not None:
-            view.set_status(self.KEY_SIZE, pattern % file_size_str(size))
+            if gzip_size is not None:
+                status = gzip_pattern.format(size=file_size_str(size), gzip_size=file_size_str(gzip_size))
+            else:
+                status = pattern.format(size=file_size_str(size))
+            view.set_status(self.KEY_SIZE, status)
 
     on_post_save_async = update_file_size
     on_modified_async = update_file_size
