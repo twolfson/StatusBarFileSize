@@ -1,3 +1,5 @@
+import gzip
+import io
 import os.path
 import sublime
 import sublime_plugin
@@ -160,6 +162,12 @@ class StatusBarFileSize(sublime_plugin.EventListener):
                 # endings.
                 size = estimate_file_size(view)
                 pattern = "~%s"
+                byte_content = io.BytesIO()
+                with gzip.open(byte_content, 'wb') as f:
+                    r = sublime.Region(0, view.size())
+                    text = view.substr(r)
+                    f.write(bytes(text))
+
             else:
                 size = None
         else:
