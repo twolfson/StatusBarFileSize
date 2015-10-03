@@ -138,11 +138,18 @@ class StatusBarFileSize(sublime_plugin.EventListener):
     KEY_SIZE = "FileSize"
     SETTINGS = "StatusBarFileSize.sublime-settings"
     ESTIMATE_DEFAULT = True
+    CALCULATE_GZIP_DEFAULT = False
 
     @property
     def setting_estimate_file_size(self):
         settings = sublime.load_settings(self.SETTINGS)
         return settings.get("estimate_file_size", self.ESTIMATE_DEFAULT)
+
+    @property
+    def setting_calculate_gzip(self):
+        # TODO: Respect this setting
+        settings = sublime.load_settings(self.SETTINGS)
+        return settings.get("calculate_gzip", self.CALCULATE_GZIP_DEFAULT)
 
     def update_file_size(self, view):
         view.erase_status(self.KEY_SIZE)
