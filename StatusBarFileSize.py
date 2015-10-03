@@ -166,7 +166,7 @@ class StatusBarFileSize(sublime_plugin.EventListener):
                 with gzip.open(byte_content, 'wb') as f:
                     r = sublime.Region(0, view.size())
                     text = view.substr(r)
-                    f.write(bytes(text, view.encoding()))
+                    f.write(text.encode(view.encoding()))
                 print(byte_content.tell())
 
             else:
