@@ -1,3 +1,4 @@
+import base64
 import gzip
 import io
 import os.path
@@ -101,6 +102,11 @@ def count_hex_digits(s):
     return sum(1 for x in s if x in "abcdefABCDEF0123456789")
 
 
+def parse_hexlike_str(s):
+    spaceless_s = ''.join(x for x in s if x in "abcdefABCDEF0123456789")
+    return base64.b16decode(spaceless_s.upper())
+
+
 def get_view_info(view):
     line_endings = LINE_ENDINGS_MAP[view.line_endings()]
     encoding = ENCODING_MAP[view.encoding()]
@@ -165,14 +171,16 @@ def calculate_gzip_size(view):
             text = view.substr(r)
 
             if encoding == SPECIAL_HEXADECIMAL:
-                # TODO: Figure out what to do for hexadecimal
-                return None
+                # Special-case handling for the special-case Hexadecimal encoding.
+                # Strip out whitespace and convert it to bytes (e.g. "4849 5955" -> b"\x48\x49\x59\x55")
+                encoded_text = parse_hexlike_str(text)
             else:
                 try:
-                    f.write(text.replace("\n", line_endings).encode(encoding))
+                    encoded_text = text.replace("\n", line_endings).encode(encoding)
                 except UnicodeError:
                     # Encoding failed, we just fail here.
                     return None
+            f.write(encoded_text)
     return int(byte_content.tell())
 
 
