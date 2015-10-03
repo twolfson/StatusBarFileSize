@@ -101,6 +101,13 @@ def count_hex_digits(s):
     return sum(1 for x in s if x in "abcdefABCDEF0123456789")
 
 
+def get_view_info(view):
+    line_endings = LINE_ENDINGS_MAP[view.line_endings()]
+    encoding = ENCODING_MAP[view.encoding()]
+    overhead = CONSTANT_OVERHEAD.get(view.encoding(), '')
+    return line_endings, encoding, overhead
+
+
 def iterate_view_blocks(view):
     for start, end in ranges(0, view.size(), BLOCK_SIZE):
         r = sublime.Region(start, end)
@@ -111,9 +118,7 @@ def estimate_file_size(view):
     tag = view.change_count()
 
     try:
-        line_endings = LINE_ENDINGS_MAP[view.line_endings()]
-        encoding = ENCODING_MAP[view.encoding()]
-        overhead = CONSTANT_OVERHEAD.get(view.encoding(), '')
+        line_endings, encoding, overhead = get_view_info(view)
     except KeyError:
         # Unknown encoding or line ending, so we fail.
         return None
@@ -145,9 +150,7 @@ def calculate_gzip_size(view):
     tag = view.change_count()
 
     try:
-        line_endings = LINE_ENDINGS_MAP[view.line_endings()]
-        encoding = ENCODING_MAP[view.encoding()]
-        overhead = CONSTANT_OVERHEAD.get(view.encoding(), '')
+        line_endings, encoding, overhead = get_view_info(view)
     except KeyError:
         # Unknown encoding or line ending, so we fail.
         return None
